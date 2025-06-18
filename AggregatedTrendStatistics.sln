@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35707.178 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AggregatedTrendStatistics", "AggregatedTrendStatistics\AggregatedTrendStatistics.csproj", "{08691045-7CDD-4595-B783-20FA2A03EFEE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Internal", "Internal", "{0DD93462-D3A9-49E6-962D-AC20E243D9DF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Code Analysis", "Code Analysis", "{C83BF29E-48FA-450E-9873-F9E945DAC9D5}"
+	ProjectSection(SolutionItems) = preProject
+		Internal\Code Analysis\qaction-debug.ruleset = Internal\Code Analysis\qaction-debug.ruleset
+		Internal\Code Analysis\qaction-release.ruleset = Internal\Code Analysis\qaction-release.ruleset
+		Internal\Code Analysis\stylecop.json = Internal\Code Analysis\stylecop.json
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AggregatedTrendStatisticsDataSource", "AggregatedTrendStatisticsDataSource\AggregatedTrendStatisticsDataSource.csproj", "{72FA8A9F-8D45-4DD9-9887-51E517814A77}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{08691045-7CDD-4595-B783-20FA2A03EFEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08691045-7CDD-4595-B783-20FA2A03EFEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08691045-7CDD-4595-B783-20FA2A03EFEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08691045-7CDD-4595-B783-20FA2A03EFEE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{72FA8A9F-8D45-4DD9-9887-51E517814A77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72FA8A9F-8D45-4DD9-9887-51E517814A77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72FA8A9F-8D45-4DD9-9887-51E517814A77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72FA8A9F-8D45-4DD9-9887-51E517814A77}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C83BF29E-48FA-450E-9873-F9E945DAC9D5} = {0DD93462-D3A9-49E6-962D-AC20E243D9DF}
+	EndGlobalSection
+EndGlobal
