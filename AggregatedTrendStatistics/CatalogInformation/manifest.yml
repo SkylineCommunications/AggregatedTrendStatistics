@@ -45,7 +45,7 @@ short_description: This data source allows you to select a column parameter ID a
 # A valid URL that points to the source code.
 #   A valid URL
 #   Max length: 2048 characters
-source_code_url:
+source_code_url: 'https://github.com/SkylineCommunications/AggregatedTrendStatistics'
 
 # [Optional]
 # A valid URL that points to documentation.
@@ -59,7 +59,7 @@ documentation_url:
 #   The name is required; max 256 characters.
 #   The email and URL are optional, and should be in valid email/URL formats.
 owners:
-  - name: 'TCA'
+  - name: 'Toon Casteele'
   
 # [Optional]
 # Tags that allow you to categorize your Catalog items.
@@ -68,5 +68,7 @@ owners:
 #   Cannot contain newlines.
 #   Cannot contain leading or trailing whitespace characters.
 tags:
-  - dataminer
-  - trend
+  - DataMiner Aggregator
+  - Average
+  - Trend
+  - Parameter
