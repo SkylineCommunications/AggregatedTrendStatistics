@@ -1,4 +1,4 @@
-# AggregatedTrendStatistics
+# Aggregated Trend Statistics Data Source
 
 ## About
 
