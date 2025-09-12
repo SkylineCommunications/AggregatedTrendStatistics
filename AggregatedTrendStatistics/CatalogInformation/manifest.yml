@@ -59,7 +59,8 @@ documentation_url:
 #   The name is required; max 256 characters.
 #   The email and URL are optional, and should be in valid email/URL formats.
 owners:
-  - name: 'TCA'
+    - name: Toon Casteele
+      email: toon.casteele@skyline.be
   
 # [Optional]
 # Tags that allow you to categorize your Catalog items.
@@ -68,5 +69,7 @@ owners:
 #   Cannot contain newlines.
 #   Cannot contain leading or trailing whitespace characters.
 tags:
-  - dataminer
+  - statistics
   - trend
+  - aggregation
+  - aggregator

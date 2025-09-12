@@ -17,7 +17,7 @@ namespace AggregatedTrendStatisticsDataSource
 		, IGQIOnInit
 		, IGQIInputArguments
 	{
-		private readonly int _minPageSize = 50; // We keep adding new tables until we have at least 10 rows. We will then still add the rest of the table.
+		private readonly int _maxPageSize = 10; // Maximum rows per page
 
 		private readonly GQIIntArgument _pidArgument = new GQIIntArgument("Column Parameter ID");
 		private readonly GQIStringArgument _protocolArgument = new GQIStringArgument("Production Protocol Name");
@@ -27,6 +27,7 @@ namespace AggregatedTrendStatisticsDataSource
 		private string _protocolName;
 		private int _pid;
 		private int _elementIndex = 0;
+		private int _indexPosition = 0; // Track position within current element's indices
 		private List<LiteElementInfoEvent> _elements;
 		private int _tablePID;
 		private HistogramInterval[] _intervals;
@@ -69,42 +70,163 @@ namespace AggregatedTrendStatisticsDataSource
 		public GQIPage GetNextPage(GetNextPageInputArgs args)
 		{
 			var rows = new List<GQIRow>();
-			for (; rows.Count <= _minPageSize && _elementIndex < _elements.Count; _elementIndex++)
-			{
-				var element = _elements[_elementIndex];
-				var indicesResponse = _dms.SendMessage(new GetDynamicTableIndices(element.DataMinerID, element.ElementID, _pid) { Filter = GetDynamicTableIndicesType.TrendedOnly }) as DynamicTableIndicesResponse;
-				//_logger.Information($"Found {indicesResponse.Indices.Length} trended indices for element {element.DataMinerID}/{element.ElementID} with protocol {_protocolName} and Table ID {_tablePID}.");
-				foreach (var index in indicesResponse.Indices)
-				{
-					var statistics = _dms.SendMessage(new GetHistogramTrendDataMessage(element.DataMinerID, element.ElementID, _pid, index.IndexValue)
-					{
-						StartTime = DateTime.Now.AddDays(-30),
-						EndTime = DateTime.Now,
-						RetrievalWithPrimaryKey = true,
-						TrendingType = TrendingType.Auto,
-						Intervals = _intervals,
-					}) as GetHistogramTrendDataResponseMessage;
 
-					if (!(statistics.TrendStatistics?.Values?.FirstOrDefault() is TrendStatistics stats))
+			try
+			{
+				while (rows.Count < _maxPageSize && _elementIndex < _elements.Count)
+				{
+					var element = _elements[_elementIndex];
+					if (element == null)
 					{
-						//_logger.Information($"No statistics found for element {element.DataMinerID}/{element.ElementID} with table PK {index.IndexValue}.");
+						_logger.Warning($"Element at index {_elementIndex} is null, skipping to next element.");
+						_elementIndex++;
+						_indexPosition = 0;
 						continue;
 					}
 
-					_logger.Information($"Row count: {rows.Count}/{_minPageSize} - " + _protocolName + " - " + element.DataMinerID + "/" + element.ElementID + " - " + index.IndexValue + " - Average: " + stats.Average);
-					rows.Add(new GQIRow(new GQICell[]
+					DynamicTableIndicesResponse indicesResponse;
+					try
 					{
-						new GQICell() { Value = $"{element.DataMinerID}/{element.ElementID}" },
-						new GQICell() { Value = index.IndexValue },
-						new GQICell() { Value = stats.Average },
-					}));
-				}
-			}
+						indicesResponse = _dms.SendMessage(new GetDynamicTableIndices(element.DataMinerID, element.ElementID, _pid) { Filter = GetDynamicTableIndicesType.TrendedOnly }) as DynamicTableIndicesResponse;
+					}
+					catch (Exception ex)
+					{
+						_logger.Error($"Failed to get indices for element {element.DataMinerID}/{element.ElementID}: {ex.Message}");
+						_elementIndex++;
+						_indexPosition = 0;
+						continue;
+					}
 
-			return new GQIPage(rows.ToArray())
+					if (indicesResponse?.Indices == null)
+					{
+						_logger.Warning($"No indices response or null indices for element {element.DataMinerID}/{element.ElementID}, skipping to next element.");
+						_elementIndex++;
+						_indexPosition = 0;
+						continue;
+					}
+
+					// Start from the current index position within this element
+					for (int i = _indexPosition; i < indicesResponse.Indices.Length && rows.Count < _maxPageSize; i++)
+					{
+						var index = indicesResponse.Indices[i];
+						if (index?.IndexValue == null)
+						{
+							_logger.Warning($"Null index at position {i} for element {element.DataMinerID}/{element.ElementID}, skipping.");
+							_indexPosition = i + 1;
+							continue;
+						}
+
+						GetHistogramTrendDataResponseMessage statistics;
+						try
+						{
+							statistics = _dms.SendMessage(new GetHistogramTrendDataMessage(element.DataMinerID, element.ElementID, _pid, index.IndexValue)
+							{
+								StartTime = DateTime.Now.AddDays(-30),
+								EndTime = DateTime.Now,
+								RetrievalWithPrimaryKey = true,
+								TrendingType = TrendingType.Auto,
+								Intervals = _intervals,
+							}) as GetHistogramTrendDataResponseMessage;
+						}
+						catch (Exception ex)
+						{
+							_logger.Warning($"Failed to get trend statistics for element {element.DataMinerID}/{element.ElementID}, index {index.IndexValue}: {ex.Message}");
+							_indexPosition = i + 1;
+							continue;
+						}
+
+						if (!(statistics?.TrendStatistics?.Values?.FirstOrDefault() is TrendStatistics stats))
+						{
+							// _logger.Information($"No statistics found for element {element.DataMinerID}/{element.ElementID} with table PK {index.IndexValue}.");
+							_indexPosition = i + 1;
+							continue;
+						}
+
+						_logger.Information($"Row count: {rows.Count}/{_maxPageSize} - " + _protocolName + " - " + element.DataMinerID + "/" + element.ElementID + " - " + index.IndexValue + " - Average: " + stats.Average);
+
+						try
+						{
+							rows.Add(new GQIRow(new GQICell[]
+							{
+								new GQICell() { Value = $"{element.DataMinerID}/{element.ElementID}" },
+								new GQICell() { Value = index.IndexValue },
+								new GQICell() { Value = stats.Average },
+							}));
+						}
+						catch (Exception ex)
+						{
+							_logger.Error($"Failed to create GQI row for element {element.DataMinerID}/{element.ElementID}, index {index.IndexValue}: {ex.Message}");
+							_indexPosition = i + 1;
+							continue;
+						}
+
+						_indexPosition = i + 1; // Update position within current element
+					}
+
+					// If we've processed all indices for this element, move to next element
+					if (_indexPosition >= indicesResponse.Indices.Length)
+					{
+						_elementIndex++;
+						_indexPosition = 0; // Reset index position for next element
+					}
+					else
+					{
+						// We stopped in the middle of this element due to page size limit
+						break;
+					}
+				}
+
+				// Determine if there are more pages
+				bool hasNextPage = false;
+				if (_elementIndex < _elements.Count)
+				{
+					if (_indexPosition > 0)
+					{
+						// We're in the middle of an element, so there are definitely more rows
+						hasNextPage = true;
+					}
+					else
+					{
+						// Check if current element has indices or if there are more elements
+						var element = _elements[_elementIndex];
+						if (element != null)
+						{
+							try
+							{
+								var indicesResponse = _dms.SendMessage(new GetDynamicTableIndices(element.DataMinerID, element.ElementID, _pid) { Filter = GetDynamicTableIndicesType.TrendedOnly }) as DynamicTableIndicesResponse;
+								hasNextPage = (indicesResponse?.Indices?.Length ?? 0) > 0 || (_elementIndex + 1) < _elements.Count;
+							}
+							catch (Exception ex)
+							{
+								_logger.Warning($"Failed to check indices for hasNextPage on element {element.DataMinerID}/{element.ElementID}: {ex.Message}");
+								hasNextPage = (_elementIndex + 1) < _elements.Count;
+							}
+						}
+						else
+						{
+							hasNextPage = (_elementIndex + 1) < _elements.Count;
+						}
+					}
+				}
+
+				_logger.Information($"Returning page with {rows.Count} rows. Has next page: {hasNextPage}");
+
+				return new GQIPage(rows.ToArray())
+				{
+					HasNextPage = hasNextPage,
+				};
+			}
+			catch (Exception ex)
 			{
-				HasNextPage = _elementIndex + 1 < _elements.Count,
-			};
+				_logger.Error($"Unexpected error in GetNextPage: {ex.Message}");
+				_logger.Error($"Stack trace: {ex.StackTrace}");
+
+				// Return what we have so far and mark as no more pages to prevent infinite loops
+				return new GQIPage(rows.ToArray())
+				{
+					HasNextPage = false,
+				};
+			}
 		}
 
 		public OnPrepareFetchOutputArgs OnPrepareFetch(OnPrepareFetchInputArgs args)
