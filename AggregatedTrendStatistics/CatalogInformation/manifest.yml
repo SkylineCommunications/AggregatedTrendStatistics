@@ -45,7 +45,7 @@ short_description: This data source allows you to select a column parameter ID a
 # A valid URL that points to the source code.
 #   A valid URL
 #   Max length: 2048 characters
-source_code_url:
+source_code_url: https://github.com/SkylineCommunications/AggregatedTrendStatistics
 
 # [Optional]
 # A valid URL that points to documentation.
