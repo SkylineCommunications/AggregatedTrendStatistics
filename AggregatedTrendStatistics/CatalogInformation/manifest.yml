@@ -34,12 +34,12 @@ id: 66cf9856-2510-4e96-aa45-f755f32fb0a0
 #   Max length: 100 characters.
 #   Cannot contain newlines.
 #   Cannot contain leading or trailing whitespace characters.
-title: Aggregated Trend Statistics Data Source
+title: Aggregated Trend Statistics Data Sources
 
 # [Optional]
 # General information about the Catalog item.
 #   Max length: 100,000 characters
-short_description: This data source allows you to select a column parameter ID and a protocol name. It generates rows with the average trend value over the last month for each table row of every element on the production version of the chosen protocol. It is recommended to use the DataMiner Aggregator DxM for scheduled queries to handle the data retrieval efficiently.
+short_description: A comprehensive package containing two complementary GQI ad hoc data sources for trend statistics analysis. The Protocol-Based data source analyzes all elements of a specific protocol, while the Element-Specific data source allows targeted analysis of manually specified elements. Both retrieve average trend values 30 day time periods and are optimized for use with DataMiner Aggregator DxM.
 
 # [Optional]
 # A valid URL that points to the source code.

@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <DMSScript options="272" xmlns="http://www.skyline.be/automation">
-	<Name>AggregatedTrendStatisticsDataSource</Name>
-	<Description></Description>
+	<Name>AggregatedTrendStatisticsByElementDataSource</Name>
+	<Description>Ad hoc data source for retrieving trend statistics from specific elements rather than all elements of a protocol</Description>
 	<Type>Automation</Type>
 	<Author>Toon Casteele</Author>
 	<CheckSets>FALSE</CheckSets>
@@ -18,10 +18,10 @@
 
 	<Script>
 		<Exe id="1" type="csharp">
-			<Value><![CDATA[[Project:AggregatedTrendStatisticsDataSource]]]></Value>
+			<Value><![CDATA[[Project:AggregatedTrendStatisticsByElementDataSource]]]></Value>
 			<!--<Param type="debug">true</Param>-->
 			<Param type="preCompile">true</Param>
-			<Param type="libraryName">AggregatedTrendStatisticsDataSource</Param>
+			<Param type="libraryName">AggregatedTrendStatisticsByElementDataSource</Param>
 			<Message></Message>
 		</Exe>
 	</Script>
