@@ -14,7 +14,6 @@ namespace AggregatedTrendStatisticsByElementDataSource
 	[GQIMetaData(Name = "Element-Specific Trend Statistics")]
 	public sealed class AggregatedTrendStatisticsByElementDataSource : BaseTrendStatisticsDataSource
 	{
-		private readonly GQIIntArgument _pidArgument = new GQIIntArgument("Column Parameter ID") { IsRequired = true };
 		private readonly GQIStringArgument _elementsArgument = new GQIStringArgument("Element Keys (',' or ';' separated)")
 		{
 			IsRequired = true,
@@ -23,21 +22,28 @@ namespace AggregatedTrendStatisticsByElementDataSource
 
 		private IReadOnlyList<IElementReference> _elements;
 
+		/// <summary>
+		/// Gets the list of elements to process.
+		/// </summary>
 		protected override IReadOnlyList<IElementReference> Elements => _elements ?? EmptyElements;
 
-		public override GQIArgument[] GetInputArguments()
+		/// <summary>
+		/// Gets the data source-specific input arguments.
+		/// </summary>
+		protected override GQIArgument[] GetInputArgumentsInner()
 		{
 			return new GQIArgument[]
 			{
 				_elementsArgument,
-				_pidArgument,
 			};
 		}
 
-		public override OnArgumentsProcessedOutputArgs OnArgumentsProcessed(OnArgumentsProcessedInputArgs args)
+		/// <summary>
+		/// Processes the data source-specific input arguments.
+		/// </summary>
+		protected override OnArgumentsProcessedOutputArgs OnArgumentsProcessedInner(OnArgumentsProcessedInputArgs args)
 		{
 			var elementsString = args.GetArgumentValue<string>(_elementsArgument);
-			ParameterId = args.GetArgumentValue<int>(_pidArgument);
 
 			var elementsList = new List<CustomElementReference>();
 
@@ -65,7 +71,10 @@ namespace AggregatedTrendStatisticsByElementDataSource
 			return new OnArgumentsProcessedOutputArgs();
 		}
 
-		protected override OnPrepareFetchOutputArgs OnPrepareFetchCore(OnPrepareFetchInputArgs args)
+		/// <summary>
+		/// Inner preparation logic for element-specific data sources.
+		/// </summary>
+		protected override OnPrepareFetchOutputArgs OnPrepareFetchInner(OnPrepareFetchInputArgs args)
 		{
 			if (_elements == null || _elements.Count == 0)
 			{
@@ -93,6 +102,9 @@ namespace AggregatedTrendStatisticsByElementDataSource
 			return int.TryParse(parts[0], out dmaId) && int.TryParse(parts[1], out elementId);
 		}
 
+		/// <summary>
+		/// Implementation of IElementReference for user-specified elements.
+		/// </summary>
 		private class CustomElementReference : IElementReference
 		{
 			public CustomElementReference(int dataMinerID, int elementID, string key)

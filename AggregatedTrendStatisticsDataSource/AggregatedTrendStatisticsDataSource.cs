@@ -14,44 +14,38 @@ namespace AggregatedTrendStatisticsDataSource
 	[GQIMetaData(Name = "Aggregated Trend Statistics")]
 	public sealed class AggregatedTrendStatisticsDataSource : BaseTrendStatisticsDataSource
 	{
-		private readonly GQIIntArgument _pidArgument = new GQIIntArgument("Column Parameter ID");
-		private readonly GQIStringArgument _protocolArgument = new GQIStringArgument("Production Protocol Name");
+		private readonly GQIStringArgument _protocolArgument = new GQIStringArgument("Production Protocol Name") { IsRequired = true };
 
 		private string _protocolName;
 		private IReadOnlyList<IElementReference> _elements;
 
-		/// <summary>
-		/// Gets the list of elements to process.
-		/// </summary>
 		protected override IReadOnlyList<IElementReference> Elements => _elements ?? EmptyElements;
 
 		/// <summary>
-		/// Gets the input arguments for the data source.
+		/// Gets the data source-specific input arguments.
 		/// </summary>
-		public override GQIArgument[] GetInputArguments()
+		protected override GQIArgument[] GetInputArgumentsInner()
 		{
 			return new GQIArgument[]
 			{
 				_protocolArgument,
-				_pidArgument,
 			};
 		}
 
 		/// <summary>
-		/// Processes the input arguments provided by the user.
+		/// Processes the data source-specific input arguments.
 		/// </summary>
-		public override OnArgumentsProcessedOutputArgs OnArgumentsProcessed(OnArgumentsProcessedInputArgs args)
+		protected override OnArgumentsProcessedOutputArgs OnArgumentsProcessedInner(OnArgumentsProcessedInputArgs args)
 		{
 			_protocolName = args.GetArgumentValue<string>(_protocolArgument);
-			ParameterId = args.GetArgumentValue<int>(_pidArgument);
 
 			return new OnArgumentsProcessedOutputArgs();
 		}
 
 		/// <summary>
-		/// Core preparation logic for protocol-based element discovery.
+		 /// Inner preparation logic for protocol-based element discovery.
 		/// </summary>
-		protected override OnPrepareFetchOutputArgs OnPrepareFetchCore(OnPrepareFetchInputArgs args)
+		protected override OnPrepareFetchOutputArgs OnPrepareFetchInner(OnPrepareFetchInputArgs args)
 		{
 			var responseMsgs = Dms.SendMessages(GetLiteElementInfo.ByProtocol(_protocolName, "Production")) as DMSMessage[];
 			if (responseMsgs == null || responseMsgs.Length == 0)
