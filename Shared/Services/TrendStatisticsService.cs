@@ -4,6 +4,8 @@ namespace TrendStatisticsShared.Services
 	using System.Collections.Generic;
 	using System.Linq;
 	using Skyline.DataMiner.Analytics.GenericInterface;
+	using Skyline.DataMiner.Net;
+	using Skyline.DataMiner.Net.Exceptions;
 	using Skyline.DataMiner.Net.Messages;
 	using Skyline.DataMiner.Net.Trending;
 	using TrendStatisticsShared.Models;
@@ -42,47 +44,147 @@ namespace TrendStatisticsShared.Services
 
 		/// <summary>
 		/// Retrieves table primary keys for rows that have trending enabled and match the subscription filter.
-		/// Uses GetPartialTableMessage with subscription filters for server-side filtering.
+		/// Uses SessionTableMessage for pagination to retrieve all matching rows across multiple pages.
 		/// </summary>
 		/// <param name="element">The element reference.</param>
 		/// <returns>Array of primary keys, or empty array if failed.</returns>
 		public string[] GetTablePrimaryKeys(IElementReference element)
 		{
+			int sessionId = -1;
+			var elementId = new ElementID(element.DataMinerID, element.ElementID);
+
 			try
 			{
 				// Build filters array: always include trend filter, plus optional user filter
 				var filters = BuildFiltersArray();
-
-				// Use GetPartialTableMessage which supports filters
-				var tableRequest = new GetPartialTableMessage(
-					element.DataMinerID,
-					element.ElementID,
-					_config.ParameterId,
-					filters);
 
 				if (filters != null && filters.Length > 0)
 				{
 					_logger.Information($"Requesting table with filters: {string.Join("; ", filters)}");
 				}
 
-				var tableResponse = _dms.SendMessage(tableRequest) as ParameterChangeEventMessage;
+				var allPrimaryKeys = new List<string>();
+				uint currentPage = 1;
+				bool hasMorePages = true;
 
-				if (tableResponse?.NewValue?.ArrayValue == null)
+				// Loop through all pages
+				while (hasMorePages)
 				{
-					_logger.Warning($"No table data returned for element {element.Key}, parameter {_config.ParameterId}");
-					return Array.Empty<string>();
+					SessionTableMessage pageRequest;
+
+					if (sessionId < 0)
+					{
+						// First request: Start the session with filters
+						// Note: First page is page 1, not page 0
+						pageRequest = new SessionTableMessage(
+							elementId,
+							_config.ParameterId,
+							filters);
+					}
+					else
+					{
+						// Subsequent requests: Use session ID and page number
+						pageRequest = new SessionTableMessage(
+							elementId,
+							sessionId,
+							currentPage);
+					}
+
+					var pageResponse = _dms.SendMessage(pageRequest) as ParameterChangeEventMessage;
+
+					if (pageResponse?.NewValue?.ArrayValue == null)
+					{
+						if (currentPage == 1)
+						{
+							_logger.Warning($"No table data returned for element {element.Key}, parameter {_config.ParameterId}");
+						}
+						else
+						{
+							_logger.Information($"No more data returned for page {currentPage} of session {sessionId} - end of pages reached");
+						}
+
+						break;
+					}
+
+					// Extract session ID from first response (DataCookie)
+					if (sessionId < 0)
+					{
+						sessionId = pageResponse.DataCookie;
+						_logger.Information($"Started session {sessionId} for element {element.Key}");
+					}
+
+					// Parse primary keys from this page
+					var pageKeys = ParseTablePrimaryKeys(pageResponse, element, (int)currentPage);
+
+					if (pageKeys.Length == 0)
+					{
+						_logger.Information($"Page {currentPage}: No keys returned - end of pages reached");
+						hasMorePages = false;
+					}
+					else
+					{
+						allPrimaryKeys.AddRange(pageKeys);
+						_logger.Information($"Page {currentPage}: Retrieved {pageKeys.Length} primary keys");
+
+						// Check if there are more pages using PartialDataInfo
+						// PartialDataInfo.Pages contains the total number of pages
+						var totalPages = pageResponse.PartialDataInfo?.Pages?.Length ?? 0;
+
+						if (totalPages > 0 && currentPage >= totalPages)
+						{
+							_logger.Information($"Page {currentPage}: Reached last page ({totalPages} total pages)");
+							hasMorePages = false;
+
+							// Immediately close the session as there are no more pages
+							CloseSession(elementId, sessionId);
+							sessionId = -1; // Prevent closing again in finally block
+						}
+						else
+						{
+							// Move to next page
+							currentPage++;
+						}
+					}
 				}
 
-				// Parse the table to extract primary keys
-				var primaryKeys = ParseTablePrimaryKeys(tableResponse, element);
-
-				_logger.Information($"Retrieved {primaryKeys.Length} trended primary keys from element {element.Key}");
-				return primaryKeys;
+				_logger.Information($"Retrieved {allPrimaryKeys.Count} total trended primary keys from element {element.Key} across {currentPage} page(s)");
+				return allPrimaryKeys.ToArray();
+			}
+			catch (DataMinerCOMException ex)
+			{
+				_logger.Error($"COM exception while getting table primary keys for element {element.Key}: {ex.Message} (HR: 0x{ex.ErrorCode:X})");
+				return Array.Empty<string>();
 			}
 			catch (Exception ex)
 			{
 				_logger.Error($"Failed to get table primary keys for element {element.Key}: {ex.Message}");
 				return Array.Empty<string>();
+			}
+			finally
+			{
+				// Close the session if still open
+				if (sessionId >= 0)
+				{
+					CloseSession(elementId, sessionId);
+				}
+			}
+		}
+
+		private void CloseSession(ElementID element, int sessionId)
+		{
+			try
+			{
+				var closeSessionRequest = new SessionTableMessage(element, sessionId)
+				{
+					CloseSession = true,
+				};
+
+				_dms.SendMessage(closeSessionRequest);
+				_logger.Information($"Closed session {sessionId} for element {element.ToString()}");
+			}
+			catch (Exception ex)
+			{
+				_logger.Warning($"Failed to close session {sessionId}: {ex.Message}");
 			}
 		}
 
@@ -90,8 +192,11 @@ namespace TrendStatisticsShared.Services
 		{
 			var filtersList = new List<string>();
 
+			// Always add trend filter to get only rows with trending enabled
+			// Format: trend=avg,{parameterId}|rt,{parameterId} (both average and real-time)
 			filtersList.Add($"trend=avg,{_config.ParameterId}|rt,{_config.ParameterId}");
 
+			// Add user-provided subscription filter if specified
 			if (!string.IsNullOrWhiteSpace(_config.SubscriptionFilter))
 			{
 				filtersList.Add(_config.SubscriptionFilter);
@@ -100,23 +205,24 @@ namespace TrendStatisticsShared.Services
 			return filtersList.ToArray();
 		}
 
-		private string[] ParseTablePrimaryKeys(ParameterChangeEventMessage tableMessage, IElementReference element)
+		private string[] ParseTablePrimaryKeys(ParameterChangeEventMessage tableMessage, IElementReference element, int pageNumber)
 		{
 			// Table structure: ArrayValue contains columns (not rows)
 			// By DataMiner convention, columns[0] is the primary key column
-
 			var columns = tableMessage.NewValue.ArrayValue;
 
 			if (columns == null || columns.Length == 0)
 			{
-				_logger.Warning($"Table has no columns for element {element.Key}");
+				_logger.Warning($"Table page {pageNumber} has no columns for element {element.Key}");
 				return Array.Empty<string>();
 			}
 
+			// Extract primary keys from the first column (standard PK column position)
 			var primaryKeyColumn = columns[0];
+
 			if (primaryKeyColumn?.ArrayValue == null || primaryKeyColumn.ArrayValue.Length == 0)
 			{
-				_logger.Warning($"Primary key column is empty for element {element.Key}");
+				_logger.Warning($"Primary key column is empty on page {pageNumber} for element {element.Key}");
 				return Array.Empty<string>();
 			}
 
@@ -132,7 +238,7 @@ namespace TrendStatisticsShared.Services
 				}
 			}
 
-			_logger.Information($"Parsed {primaryKeys.Count} primary keys from table (total rows: {primaryKeyColumn.ArrayValue.Length})");
+			_logger.Information($"Page {pageNumber}: Parsed {primaryKeys.Count} primary keys (total rows in page: {primaryKeyColumn.ArrayValue.Length})");
 			return primaryKeys.ToArray();
 		}
 
